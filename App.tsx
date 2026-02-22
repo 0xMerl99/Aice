@@ -49,7 +49,10 @@ const App: React.FC = () => {
         body: JSON.stringify({ prompt, npcName: npc.name }),
       });
 
-      if (!response.ok) throw new Error('Failed to fetch response');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
       
       const data = await response.json();
       const aiText = data.text || "Hello.";

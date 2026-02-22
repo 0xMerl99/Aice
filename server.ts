@@ -1,6 +1,9 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import Anthropic from "@anthropic-ai/sdk";
+import { Anthropic } from "@anthropic-ai/sdk";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 async function startServer() {
   const app = express();
@@ -8,19 +11,20 @@ async function startServer() {
 
   app.use(express.json());
 
-  const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY || "",
-  });
-
   // API route for agent responses
   app.post("/api/chat", async (req, res) => {
     const { prompt, npcName } = req.body;
 
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return res.status(500).json({ error: "ANTHROPIC_API_KEY is not set" });
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+
+    if (!apiKey) {
+      console.error("ANTHROPIC_API_KEY is missing from environment variables.");
+      return res.status(500).json({ error: "ANTHROPIC_API_KEY is not set. Please add it to your environment variables." });
     }
 
     try {
+      const anthropic = new Anthropic({ apiKey });
+      
       const message = await anthropic.messages.create({
         model: "claude-3-5-sonnet-20241022",
         max_tokens: 100,
@@ -35,9 +39,9 @@ async function startServer() {
       // Extract text from Anthropic response
       const text = message.content.find(c => c.type === 'text')?.text || "Hello.";
       res.json({ text });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Anthropic API Error:", error);
-      res.status(500).json({ error: "Failed to fetch response from Anthropic" });
+      res.status(500).json({ error: error.message || "Failed to fetch response from Anthropic" });
     }
   });
 
