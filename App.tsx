@@ -4,7 +4,6 @@ import { GameEngine } from './components/GameEngine';
 import { LeftSidebar } from './components/LeftSidebar';
 import { RightSidebar } from './components/RightSidebar';
 import { Entity, ChatMessage } from './types';
-import { GoogleGenAI } from "@google/genai";
 
 type ViewMode = 'town' | 'command' | 'data';
 
@@ -26,10 +25,8 @@ const App: React.FC = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   
   const interactedNpcs = useRef<Set<string>>(new Set());
-  const aiRef = useRef<any>(null);
 
   useEffect(() => {
-    aiRef.current = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -42,21 +39,23 @@ const App: React.FC = () => {
 
     setIsProcessing(true);
     try {
-      const ai = aiRef.current;
-      if (ai) {
-        let prompt = isProximityTrigger 
-          ? `You are ${npc.name}, a pixel citizen. Greet the player shortly (max 8 words).`
-          : `You are ${npc.name}. Player says: "${playerText}". Respond shortly (max 12 words).`;
+      let prompt = isProximityTrigger 
+        ? `You are ${npc.name}, a pixel citizen in a neon-lit town. Greet the player shortly (max 8 words).`
+        : `You are ${npc.name}, a pixel citizen. Player says: "${playerText}". Respond shortly (max 12 words).`;
 
-        const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
-          contents: prompt,
-        });
-        
-        const aiText = response.text || "Hello.";
-        setMessages(prev => [...prev, { id: Date.now().toString(), sender: npc.name, text: aiText, timestamp: Date.now() }].slice(-15));
-        setEntities(prev => prev.map(e => e.id === npc.id ? { ...e, bubbleText: aiText, bubbleTimer: 4000 } : e));
-      }
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, npcName: npc.name }),
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch response');
+      
+      const data = await response.json();
+      const aiText = data.text || "Hello.";
+      
+      setMessages(prev => [...prev, { id: Date.now().toString(), sender: npc.name, text: aiText, timestamp: Date.now() }].slice(-15));
+      setEntities(prev => prev.map(e => e.id === npc.id ? { ...e, bubbleText: aiText, bubbleTimer: 4000 } : e));
     } catch (err) {
       console.error("AI Error:", err);
     } finally {
